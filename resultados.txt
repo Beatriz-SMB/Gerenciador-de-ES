@@ -1,0 +1,2 @@
+OTIMO: 8 |FIFO: 8 |NUF: 8 |MRU: 5
+Algoritmo mais próximo do OTIMO: EMPATE
