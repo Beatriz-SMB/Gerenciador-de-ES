@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <time.h>
 
 #define MAX_LINE_LENGTH 256
 #define MAX_PROCESSES 100
@@ -28,10 +29,11 @@ typedef struct{
         moldurasUsadas;
 } DadosProcessos;
 
+// Dados dos dispositivos
 typedef struct{
     int idDispositivo,
-        numUsosSimultaneos,
-        tempoOperacao;
+        numUsosSimultaneos,     
+        tempoOperacao;          
 } DadosDispositivos;
 
 // Variaveis globais
@@ -42,12 +44,27 @@ int clockCPU,
     tamanhoPagina, 
     percentualAlocacao, 
     acessoPorCiclo, 
-    numDispositivosES,
+    numDispositivosES,          
     acessosNaMemoria,
     moldurasTotais;
 
 DadosProcessos *listaP = NULL; // Ponteiro para a lista de processos
 DadosDispositivos *listaD = NULL; // Ponteiro para a lista de dispositivos
+
+//------------------------------------------- Algortimo de Gerenciador de E/S --------------------------------------------------------------------------------------------
+
+int sorteia_numero(int porcentagem){
+    
+    srand(time(NULL));
+
+    int numeroAleatorio = rand() % 100;
+    printf("Numero sorteado: %d\n", numeroAleatorio);
+    if (numeroAleatorio >= porcentagem) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
 
 //------------------------------------------- Algortimo de MEMORIA FIFO --------------------------------------------------------------------------------------------
 typedef struct {
@@ -409,6 +426,7 @@ int read_process(const char *nome_arquivo, DadosProcessos *listaP, DadosDisposit
     return lineCount;
 }
 
+// Função para printar a lista de processos
 void show_process(DadosProcessos *listaP, int numeroProcessos) {
     for (int j = 0; j < numeroProcessos; j++) {
         printf("\nProcesso: %s\n", listaP[j].nome_processo);
@@ -426,6 +444,7 @@ void show_process(DadosProcessos *listaP, int numeroProcessos) {
     }
 }
 
+// Função para printar a lista de dispositivos
 void show_devices(DadosDispositivos *listaD, int numeroDispositivos) {
     for (int j = 0; j < numeroDispositivos; j++) {
         printf("ID: %d\n", listaD[j].idDispositivo);
@@ -545,7 +564,7 @@ void *recebe_novos_processos(void* arg){
         char* sequencia_str;
         
         // Tenta ler os 5 campos principais
-        int result = sscanf(linha, "%[^|]|%d|%d|%d|%d|%m[^\n]", nome, &id, &tempo, &prioridade, &qtdMemoria, &sequencia_str); 
+        int result = sscanf(linha, "processo-%[^|]|%d|%d|%d|%d|%[^\n]", nome, &id, &tempo, &prioridade, &qtdMemoria, &sequencia_str); 
         
         if (result == 6) {  // Certifique-se de que 6 campos foram lidos corretamente
             strcpy(listaP[iterador - 1].nome_processo, nome);
@@ -701,7 +720,9 @@ int main() {
     show_devices(listaD, numDispositivosES);
     // Imprime os valores dos processos
     show_process(listaP, numeroProcessos);
-    
+
+    int resultado = sorteia_numero(65);
+    printf("Resultado: %d\n", resultado);
 
     iterador = numeroProcessos;
 

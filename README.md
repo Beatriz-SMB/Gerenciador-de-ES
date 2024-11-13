@@ -1,29 +1,7 @@
 
-# Gerenciador de Memória
+# Gerenciador de Entrada e Saída
 
-O objetivo deste trabalho é comparar o desempenho de diferentes algoritmos de substituição de página em termos de número de trocas de página, utilizando como referência o algoritmo ótimo. Serão implementados e analisados os seguintes algoritmos:
-
-
-## 1. Algoritmo Ótimo
-O algoritmo de substituição de páginas ótimo busca minimizar o número de faltas de página, substituindo a página que será acessada mais tarde no futuro em comparação com as outras páginas que já estão na memória. Ele faz isso com base no conhecimento dos acessos futuros, algo que, na prática, é impossível de se prever com precisão, o que torna esse algoritmo teórico.
-
-
-
-## 2. Menos Recentemente Usada (MRU)
-
-O algoritmo de substituição de páginas "Menos Recentemente Usada" é uma técnica de gerenciamento de memória que prioriza a permanência na memória das páginas que foram acessadas mais recentemente. Quando ocorre uma falta de página e é necessário substituir uma página na memória, o MRU identifica a página que não foi utilizada por mais tempo e a substitui.
-
-
-## 3. Não usada frequentemente (NUF) 
-
-Este 
-
-
-
-## 4. FIFO
-
-Este 
-
+O objetivo deste trabalho é estender o código do escalonador de processos baseado no algoritmo de prioridade, integrando a funcionalidade de gerenciamento de Entrada e Saída (E/S). A implementação visa abstrair e gerenciar os dispositivos de E/S, permitindo que o sistema operacional atenda simultaneamente às necessidades de processamento e de comunicação com periféricos, melhorando o desempenho e a eficiência no uso dos recursos computacionais.
 
 ## Dependências
 
