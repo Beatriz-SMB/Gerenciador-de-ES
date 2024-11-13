@@ -59,7 +59,7 @@ int sorteia_numero(int porcentagem){
 
     int numeroAleatorio = rand() % 100;
     printf("Numero sorteado: %d\n", numeroAleatorio);
-    if (numeroAleatorio >= porcentagem) {
+    if (porcentagem >= numeroAleatorio) {
         return 1;
     } else {
         return 0;
