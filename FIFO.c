@@ -26,14 +26,16 @@ typedef struct{
         estadoSequencia,
         latencia,
         trocasDePaginas,
-        moldurasUsadas;
+        moldurasUsadas,
+        status; // Status do processos (0 para pronto e 1 para bloqueado)
 } DadosProcessos;
 
 // Dados dos dispositivos
 typedef struct{
     int idDispositivo,
         numUsosSimultaneos,     
-        tempoOperacao;          
+        tempoOperacao,
+        numOfUses; // numero de dispositivos que esta sendo usado no momento
 } DadosDispositivos;
 
 // Variaveis globais
@@ -48,8 +50,9 @@ int clockCPU,
     acessosNaMemoria,
     moldurasTotais;
 
-DadosProcessos *listaP = NULL; // Ponteiro para a lista de processos
+DadosProcessos *listaP = NULL; // Ponteiro para a lista de processos PRONTOS
 DadosDispositivos *listaD = NULL; // Ponteiro para a lista de dispositivos
+DadosDispositivos *lockedList = NULL; // Ponteiro para a lista de processos bloqueados
 
 //------------------------------------------- Algortimo de Gerenciador de E/S --------------------------------------------------------------------------------------------
 
@@ -88,7 +91,7 @@ void print_primary_memory() {
 }
 
 void initMemory(){
-    printf("Memoria inicialmente\n");
+    printf("\n--- Memoria iniciada ---\n");
     for (int i = 0; i < moldurasTotais; i++){
         primaryMemory[i].id = -1;
         primaryMemory[i].page = -1;
@@ -401,6 +404,7 @@ int read_process(const char *nome_arquivo, DadosProcessos *listaP, DadosDisposit
             listaP[i].estadoSequencia = 0;
             listaP[i].trocasDePaginas = 0;
             listaP[i].moldurasUsadas = 0;
+            listaP[i].status = 0;
 
             // Ler e armazenar a sequência
             char *sequencia_str = strtok(NULL, "|");
@@ -479,6 +483,7 @@ void *executando_processos(void* arg){
     while(true){
         int maior_prioridade = 0, j = 0, k = 0, posicao = 0,  clock = *(int*)arg;;
         while(j < iterador){
+            // Percorre a lista de processos e encontra o processo com maior prioridade e armazena a posicao
             if (maior_prioridade < listaP[j].prioridade && listaP[j].tempo_execucao > 0){
                 maior_prioridade = listaP[j].prioridade;
                 posicao = j;
@@ -721,10 +726,10 @@ int main() {
     // Imprime os valores dos processos
     show_process(listaP, numeroProcessos);
 
-    int resultado = sorteia_numero(65);
-    printf("Resultado: %d\n", resultado);
+    // int resultado = sorteia_numero(65);
+    // printf("Resultado: %d\n", resultado);
 
-    iterador = numeroProcessos;
+    iterador = numeroProcessos; // Variavel para armazenar o valor de processos
 
     initMemory();
 
@@ -732,9 +737,9 @@ int main() {
     pthread_mutex_init(&mutex_prioridade, NULL);
 
     // pthread_create(&lendo_novo_processo, NULL, &recebe_novos_processos, &iterador);
-    // pthread_create(&executando_processo, NULL, &executando_processos, &clockCPU);
+    pthread_create(&executando_processo, NULL, &executando_processos, &clockCPU);
 
-    // pthread_join(executando_processo, NULL);
+    pthread_join(executando_processo, NULL);
     // pthread_cancel(lendo_novo_processo);
 
     // Saida de troca de paginas

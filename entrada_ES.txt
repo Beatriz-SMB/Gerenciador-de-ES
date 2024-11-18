@@ -1,4 +1,4 @@
-alternancia|10|local|65536|512|50|1|4
+prioridade|10|local|65536|512|50|1|4
 device-0|1|3
 device-1|2|5
 device-2|2|2
