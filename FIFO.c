@@ -38,6 +38,15 @@ typedef struct{
         numOfUses; // numero de dispositivos que esta sendo usado no momento
 } DadosDispositivos;
 
+// Lista de processos esperando por dispositivos
+typedef struct{
+    int processId ,
+        deviceId;
+} WaitDevices;
+
+int lockedStart = 0, // Controlar a fila da lista de bloqueados
+    lockedEnd = 0;   // Controlar a fila da lista de bloqueados
+
 // Variaveis globais
 char algDeEscalonamento[50];
 char politicaDeMemoria[50];
@@ -51,8 +60,9 @@ int clockCPU,
     moldurasTotais;
 
 DadosProcessos *listaP = NULL; // Ponteiro para a lista de processos PRONTOS
+DadosProcessos *lockedList = NULL; // Ponteiro para a lista de processos BLOQUEADOS
+WaitDevices *waitingDevices = NULL; // Ponteiro para a lista de processos BLOQUEADOS
 DadosDispositivos *listaD = NULL; // Ponteiro para a lista de dispositivos
-DadosDispositivos *lockedList = NULL; // Ponteiro para a lista de processos bloqueados
 
 //------------------------------------------- Algortimo de Gerenciador de E/S --------------------------------------------------------------------------------------------
 
@@ -61,7 +71,7 @@ int sorteia_numero(int porcentagem){
     srand(time(NULL));
 
     int numeroAleatorio = rand() % 100;
-    printf("Numero sorteado: %d\n", numeroAleatorio);
+    // printf("Numero sorteado: %d\n", numeroAleatorio);
     if (porcentagem >= numeroAleatorio) {
         return 1;
     } else {
@@ -475,6 +485,24 @@ void criando_arquivo(){
     }
 }
 
+void *processos_bloqueados(void* arg){
+    // criar listas para os dispositivos com 100 posicoes - Bia
+
+    // lembrar de desalocar a memoria                     - Bia
+
+    // percorrer a lista P para encontrar os bloqueados
+
+    // ler a lista de processos que estao esperando por dispositivos
+
+    // sorteia qual dispositivo
+
+    // qual momento isso acontecera do clock
+
+    // dispositivo disponivel?
+
+    // Arquivo das latencias - KNOSH DELAS
+}
+
 //Função que recebe a lista de processos e executa-os. Durante o procedimento de executar um novo processo ele "trava" a função recebe_novos_processos usando um mutex.
 void *executando_processos(void* arg){
     int latencia = 0, id_processo_anterior;
@@ -484,65 +512,77 @@ void *executando_processos(void* arg){
         int maior_prioridade = 0, j = 0, k = 0, posicao = 0,  clock = *(int*)arg;;
         while(j < iterador){
             // Percorre a lista de processos e encontra o processo com maior prioridade e armazena a posicao
-            if (maior_prioridade < listaP[j].prioridade && listaP[j].tempo_execucao > 0){
+            if (maior_prioridade < listaP[j].prioridade && listaP[j].tempo_execucao > 0 && listaP[j].status == 0){
                 maior_prioridade = listaP[j].prioridade;
                 posicao = j;
             }
             j++;     
         }
+         
+        // Ira realizar E/S
+        int sort = sorteia_numero(listaP[posicao].chanceRequisitarES);
+        // printf("Resultado: %d\n", resultado);
+        if(sort){
+            // listaP[posicao].status = 1; // estado bloqueado
+            
+            pthread_mutex_lock(&mutexesBloqueados[lockedEnd]);
+            // Adiciona o processo a lista de bloqueados
+            listaP[posicao].status = 0;
+            pthread_mutex_unlock(&mutexesBloqueados[lockedEnd]);
+        }
+        else{ // nao realiza E/S e vai para CPU
+            if (maior_prioridade > 0){
+                pthread_mutex_lock(&mutex_prioridade);
 
-        if (maior_prioridade > 0){
-            pthread_mutex_lock(&mutex_prioridade);
+                if (listaP[posicao].tempo_execucao - clock >= 0){
+                    listaP[posicao].tempo_execucao = listaP[posicao].tempo_execucao - clock;
+                }
+                else{
+                    clock = listaP[posicao].tempo_execucao;
+                    listaP[posicao].tempo_execucao = 0;
+                }
 
-            if (listaP[posicao].tempo_execucao - clock >= 0){
-                listaP[posicao].tempo_execucao = listaP[posicao].tempo_execucao - clock;
+                while(k < iterador){
+                    if (listaP[k].prioridade > 0){
+                    listaP[k].latencia += clock;
+                    }
+                    k++;
+                }
+            
+                if(listaP[posicao].tempo_execucao <= 0){ //Processo encerrou
+                    listaP[posicao].prioridade = 0;          
+                }
+
+                printf("\nPROCESSO ID %d NA CPU\nTempo de execucao: %d\nPrioridade: %d\nLatencia: %d\nqtdMemoria: %d\n", 
+                listaP[posicao].id, 
+                listaP[posicao].tempo_execucao, 
+                listaP[posicao].prioridade, 
+                listaP[posicao].latencia,
+                listaP[posicao].qtdMemoria);
+
+                // Aplicacao do algoritmo de gerenciamento de memoria FIFO
+                FIFO(listaP, posicao);
+
+                if (listaP[posicao].prioridade == 0){
+                    // libera_memoria(listaP[posicao].id);
+                    printf("Trocas no processo %d : %d \n",listaP[posicao].id, listaP[posicao].trocasDePaginas);
+                    trocasDePaginas += listaP[posicao].trocasDePaginas;
+                }
+
+                pthread_mutex_unlock(&mutex_prioridade); 
+
+                printf("\n");
+                sleep(1);
             }
             else{
-                clock = listaP[posicao].tempo_execucao;
-                listaP[posicao].tempo_execucao = 0;
-            }
-
-            while(k < iterador){
-                if (listaP[k].prioridade > 0){
-                listaP[k].latencia += clock;
+                if ( listaP[iterador-1].id == -1 ){
+                    //printf("Thread executar encerrou \n");
+                    break;
                 }
-                k++;
+                printf("Trocas total de paginas: %d \n",trocasDePaginas);
+                printf("Todos os processos foram executados. Deseja encerrar? S \n");
+                sleep(3);
             }
-        
-            if(listaP[posicao].tempo_execucao <= 0){ //Processo encerrou
-
-                listaP[posicao].prioridade = 0;          
-            }
-
-            printf("\nPROCESSO ID %d NA CPU\nTempo de execucao: %d\nPrioridade: %d\nLatencia: %d\nqtdMemoria: %d\n", 
-            listaP[posicao].id, 
-            listaP[posicao].tempo_execucao, 
-            listaP[posicao].prioridade, 
-            listaP[posicao].latencia,
-            listaP[posicao].qtdMemoria);
-
-            // Aplicacao do algoritmo de gerenciamento de memoria FIFO
-            FIFO(listaP, posicao);
-
-            if (listaP[posicao].prioridade == 0){
-                // libera_memoria(listaP[posicao].id);
-                printf("Trocas no processo %d : %d \n",listaP[posicao].id, listaP[posicao].trocasDePaginas);
-                trocasDePaginas += listaP[posicao].trocasDePaginas;
-            }
-
-            pthread_mutex_unlock(&mutex_prioridade); 
-
-            printf("\n");
-            sleep(1);
-        }
-        else{
-            if ( listaP[iterador-1].id == -1 ){
-                //printf("Thread executar encerrou \n");
-                break;
-            }
-            printf("Trocas total de paginas: %d \n",trocasDePaginas);
-            printf("Todos os processos foram executados. Deseja encerrar? S \n");
-            sleep(3);
         }
     }
 }
@@ -713,6 +753,13 @@ int main() {
         return EXIT_FAILURE;
     }
 
+    // Alocar memoria para a lista de processos em espera por dispositivos
+    waitingDevices = (WaitDevices *)malloc(100 * sizeof(WaitDevices));
+    if (waitingDevices == NULL){
+        perror("Erro ao alocar memória para a lista de espera de dispositivos");
+        return EXIT_FAILURE;
+    }
+
     // Chamar a função para ler processos do arquivo
     int numeroProcessos = read_process("entrada_ES.txt", listaP, listaD);
     if (numeroProcessos == -1) {
@@ -733,19 +780,30 @@ int main() {
 
     initMemory();
 
-    pthread_t executando_processo, lendo_novo_processo;
+    pthread_t executando_processo, lendo_novo_processo, processos_bloqueados;
     pthread_mutex_init(&mutex_prioridade, NULL);
+
+    pthread_mutex_t mutexesBloqueados[100]; // para bloquear apenas uma posicao da lista de bloqueados
+    for (int i = 0; i < 100; i++) {
+        if (pthread_mutex_init(&mutexesBloqueados[i], NULL) != 0) {
+            fprintf(stderr, "Erro ao inicializar mutex %d\n", i);
+            exit(EXIT_FAILURE);
+        }
+    }
 
     // pthread_create(&lendo_novo_processo, NULL, &recebe_novos_processos, &iterador);
     pthread_create(&executando_processo, NULL, &executando_processos, &clockCPU);
+    pthread_create(&processos_bloqueados, NULL, &processos_bloqueados, &clockCPU);
 
     pthread_join(executando_processo, NULL);
+    pthread_join(processos_bloqueados, NULL);
     // pthread_cancel(lendo_novo_processo);
 
     // Saida de troca de paginas
     // lerArquivoEAtualizar(algoritmo_atual,trocasDePaginas);
 
     pthread_mutex_destroy(&mutex_prioridade);
+    pthread_mutex_destroy(&mutex_bloqueados);
 
     free(listaP);
     // free(oldestProcess);
