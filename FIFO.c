@@ -11,7 +11,7 @@
 #define MAX_DEVICES 50
 #define MAX_SEQ_LENGTH 100
 
-int iterador = 0;
+int numProcessos = 0;
 
 // Dados dos processos
 typedef struct{
@@ -50,7 +50,8 @@ int lockedStart = 0, // Controlar a fila da lista de bloqueados
 // Variaveis globais
 char algDeEscalonamento[50];
 char politicaDeMemoria[50];
-int clockCPU, 
+int clockCPU,
+    clockAtualCPU = 0,
     tamanhoMemoria, 
     tamanhoPagina, 
     percentualAlocacao, 
@@ -476,7 +477,7 @@ void criando_arquivo(){
     FILE* arquivo_3 = fopen("SaidaPrioridade.txt", "w");
     fprintf(arquivo_3, "ID | LATÊNCIA\n");
 
-    while (i < iterador){
+    while (i < numProcessos){
         if (listaP[i].id >= 0){
             fprintf(arquivo_3, "%d | ", listaP[i].id);
             fprintf(arquivo_3, "%d\n", listaP[i].latencia);
@@ -485,23 +486,23 @@ void criando_arquivo(){
     }
 }
 
-void *processos_bloqueados(void* arg){
-    // criar listas para os dispositivos com 100 posicoes - Bia
+// void *processos_bloqueados(void* arg){
+//     // criar listas para os dispositivos com 100 posicoes - Bia
 
-    // lembrar de desalocar a memoria                     - Bia
+//     // lembrar de desalocar a memoria                     - Bia
 
-    // percorrer a lista P para encontrar os bloqueados
+//     // percorrer a lista P para encontrar os bloqueados
 
-    // ler a lista de processos que estao esperando por dispositivos
+//     // ler a lista de processos que estao esperando por dispositivos
 
-    // sorteia qual dispositivo
+//     // sorteia qual dispositivo
 
-    // qual momento isso acontecera do clock
+//     // qual momento isso acontecera do clock
 
-    // dispositivo disponivel?
+//     // dispositivo disponivel?
 
-    // Arquivo das latencias - KNOSH DELAS
-}
+//     // Arquivo das latencias - KNOSH DELAS
+// }
 
 //Função que recebe a lista de processos e executa-os. Durante o procedimento de executar um novo processo ele "trava" a função recebe_novos_processos usando um mutex.
 void *executando_processos(void* arg){
@@ -509,8 +510,8 @@ void *executando_processos(void* arg){
     int cpuClock = *(int*)arg;
 
     while(true){
-        int maior_prioridade = 0, j = 0, k = 0, posicao = 0,  clock = *(int*)arg;;
-        while(j < iterador){
+        int maior_prioridade = 0, j = 0, k = 0, posicao = 0,  clock = *(int*)arg;
+        while(j < numProcessos){
             // Percorre a lista de processos e encontra o processo com maior prioridade e armazena a posicao
             if (maior_prioridade < listaP[j].prioridade && listaP[j].tempo_execucao > 0 && listaP[j].status == 0){
                 maior_prioridade = listaP[j].prioridade;
@@ -518,33 +519,37 @@ void *executando_processos(void* arg){
             }
             j++;     
         }
-         
+
         // Ira realizar E/S
         int sort = sorteia_numero(listaP[posicao].chanceRequisitarES);
         // printf("Resultado: %d\n", resultado);
-        if(sort){
-            // listaP[posicao].status = 1; // estado bloqueado
+        if(sort && listaP[posicao].status == 0){
+            printf("Processo %d realizar E/S\n", listaP[posicao].id);
             
-            pthread_mutex_lock(&mutexesBloqueados[lockedEnd]);
-            // Adiciona o processo a lista de bloqueados
-            listaP[posicao].status = 0;
-            pthread_mutex_unlock(&mutexesBloqueados[lockedEnd]);
+            listaP[posicao].status = 1; // estado bloqueado
+            
+            // pthread_mutex_lock(&mutexesBloqueados[lockedEnd]); // Adiciona o processo a lista de bloqueados
+            // listaP[posicao].status = 1;
+            // pthread_mutex_unlock(&mutexesBloqueados[lockedEnd]);
         }
         else{ // nao realiza E/S e vai para CPU
+            if(listaP[posicao].status == 1){
+                printf("--- CPU VAZIA ---\n"); 
+            }
             if (maior_prioridade > 0){
                 pthread_mutex_lock(&mutex_prioridade);
 
-                if (listaP[posicao].tempo_execucao - clock >= 0){
-                    listaP[posicao].tempo_execucao = listaP[posicao].tempo_execucao - clock;
+                if (listaP[posicao].tempo_execucao - 1 >= 0){
+                    listaP[posicao].tempo_execucao = listaP[posicao].tempo_execucao - 1;
                 }
                 else{
                     clock = listaP[posicao].tempo_execucao;
                     listaP[posicao].tempo_execucao = 0;
                 }
 
-                while(k < iterador){
+                while(k < numProcessos){
                     if (listaP[k].prioridade > 0){
-                    listaP[k].latencia += clock;
+                    listaP[k].latencia += 1;
                     }
                     k++;
                 }
@@ -553,15 +558,41 @@ void *executando_processos(void* arg){
                     listaP[posicao].prioridade = 0;          
                 }
 
-                printf("\nPROCESSO ID %d NA CPU\nTempo de execucao: %d\nPrioridade: %d\nLatencia: %d\nqtdMemoria: %d\n", 
-                listaP[posicao].id, 
-                listaP[posicao].tempo_execucao, 
-                listaP[posicao].prioridade, 
-                listaP[posicao].latencia,
-                listaP[posicao].qtdMemoria);
+                // Imprime o processo que esta usando a CPU
+                printf("--- PROCESSO NA CPU ---\n");
+                printf("Id: %d; ", listaP[posicao].id);
+                printf("Tempo de restante: %d; ", listaP[posicao].tempo_execucao); 
+                printf("Latencia: %d\n", listaP[posicao].latencia);
+                
+                // FIFO(listaP, posicao); // Aplicacao do algoritmo de gerenciamento de memoria FIFO
 
-                // Aplicacao do algoritmo de gerenciamento de memoria FIFO
-                FIFO(listaP, posicao);
+                //Imprime todos os processos que estao PRONTOS
+                printf("--- PROCESSOS PRONTOS --- \n");
+                int k = 0;
+                while(k < numProcessos){
+                    if(listaP[k].status == 0 && k != posicao){
+                        printf("Id: %d; ", listaP[k].id);
+                        printf("Tempo de restante: %d;\n", listaP[k].tempo_execucao); 
+                    }
+                    k++;     
+                }
+
+                //Imprime todos os processos que estao BLOQUEADOS
+                printf("--- PROCESSOS BLOQUEADOS --- \n");
+                k = 0;
+                while(k < numProcessos){
+                    if(listaP[k].status == 1){
+                        // Para todos deve ser informado o tempo de CPU restante para sua conclusão.
+                        printf("Id: %d; ", listaP[k].id);
+                        printf("Tempo de restante: %d; ", listaP[k].tempo_execucao); 
+                        // usar mutex para ver qual disp esta usando ou esperando para usar 
+                        printf("Utilizando/esperando dispositivo: x\n");
+                    }
+                    k++;     
+                }
+
+                // Além disso, o seu programa deverá mostrar a lista dos dispositivos existentes, 
+                // o seu estado e os processos que estão fazendo uso ou esperando para fazer uso.
 
                 if (listaP[posicao].prioridade == 0){
                     // libera_memoria(listaP[posicao].id);
@@ -575,7 +606,7 @@ void *executando_processos(void* arg){
                 sleep(1);
             }
             else{
-                if ( listaP[iterador-1].id == -1 ){
+                if ( listaP[numProcessos-1].id == -1 ){
                     //printf("Thread executar encerrou \n");
                     break;
                 }
@@ -584,6 +615,8 @@ void *executando_processos(void* arg){
                 sleep(3);
             }
         }
+        clockAtualCPU++;
+        // printf("CLOCK: %d; \n", clockAtualCPU);
     }
 }
 
@@ -592,7 +625,7 @@ void *recebe_novos_processos(void* arg){
     char resposta, linha[50];
     int teste = 0;
     
-    iterador = *(int*)arg;
+    numProcessos = *(int*)arg;
     printf("Caso deseja inserir um novo processo siga o padrão: \nnome do processo|Id|Tempo de execução|Prioridade|QtdMemoria|Seq de Acessos\n");
 
     while (true){
@@ -600,9 +633,9 @@ void *recebe_novos_processos(void* arg){
 
         pthread_mutex_lock(&mutex_prioridade);  
 
-        iterador++;
+        numProcessos++;
 
-        listaP = realloc(listaP, iterador * sizeof(DadosProcessos));
+        listaP = realloc(listaP, numProcessos * sizeof(DadosProcessos));
         
         char nome[50];
         int id, tempo, prioridade, qtdMemoria;
@@ -612,33 +645,33 @@ void *recebe_novos_processos(void* arg){
         int result = sscanf(linha, "processo-%[^|]|%d|%d|%d|%d|%[^\n]", nome, &id, &tempo, &prioridade, &qtdMemoria, &sequencia_str); 
         
         if (result == 6) {  // Certifique-se de que 6 campos foram lidos corretamente
-            strcpy(listaP[iterador - 1].nome_processo, nome);
-            listaP[iterador - 1].id = id;
-            listaP[iterador - 1].tempo_execucao = tempo;
-            listaP[iterador - 1].prioridade = prioridade;
-            listaP[iterador - 1].qtdMemoria = qtdMemoria;
-            listaP[iterador - 1].latencia = 0;
-            listaP[iterador - 1].tamanho_sequencia = 0;
+            strcpy(listaP[numProcessos - 1].nome_processo, nome);
+            listaP[numProcessos - 1].id = id;
+            listaP[numProcessos - 1].tempo_execucao = tempo;
+            listaP[numProcessos - 1].prioridade = prioridade;
+            listaP[numProcessos - 1].qtdMemoria = qtdMemoria;
+            listaP[numProcessos - 1].latencia = 0;
+            listaP[numProcessos - 1].tamanho_sequencia = 0;
 
             // Lê a sequência de acessos se existir
             if (sequencia_str != NULL) {
                 char *token = strtok(sequencia_str, " ");
                 while (token != NULL) {
-                    listaP[iterador - 1].sequencia[listaP[iterador - 1].tamanho_sequencia++] = atoi(token);
+                    listaP[numProcessos - 1].sequencia[listaP[numProcessos - 1].tamanho_sequencia++] = atoi(token);
                     token = strtok(NULL, " ");
                 }
                 free(sequencia_str);  // Libera a memória alocada pelo sscanf
             }
 
             // Exibe o processo adicionado
-            printf("Novo processo adicionado: %s\n", listaP[iterador - 1].nome_processo);
-            printf("Id: %d \n", listaP[iterador - 1].id);
-            printf("Clock: %d \n", listaP[iterador - 1].tempo_execucao);
-            printf("Prioridade: %d \n", listaP[iterador - 1].prioridade);
-            printf("QtdMemoria: %d \n", listaP[iterador - 1].qtdMemoria);
+            printf("Novo processo adicionado: %s\n", listaP[numProcessos - 1].nome_processo);
+            printf("Id: %d \n", listaP[numProcessos - 1].id);
+            printf("Clock: %d \n", listaP[numProcessos - 1].tempo_execucao);
+            printf("Prioridade: %d \n", listaP[numProcessos - 1].prioridade);
+            printf("QtdMemoria: %d \n", listaP[numProcessos - 1].qtdMemoria);
             printf("Sequência de Acessos: ");
-            for (int i = 0; i < listaP[iterador - 1].tamanho_sequencia; i++) {
-                printf("%d ", listaP[iterador - 1].sequencia[i]);
+            for (int i = 0; i < listaP[numProcessos - 1].tamanho_sequencia; i++) {
+                printf("%d ", listaP[numProcessos - 1].sequencia[i]);
             }
             printf("\n\n");
         }
@@ -646,7 +679,7 @@ void *recebe_novos_processos(void* arg){
             int result = sscanf(linha, "%s", nome);
 
             if(result == 1 && strcmp(nome, "s") == 0){
-                listaP[iterador - 1].id = -1;
+                listaP[numProcessos - 1].id = -1;
                 //printf("Thread Adiconar encerrou \n");
                 break;
             }
@@ -776,7 +809,7 @@ int main() {
     // int resultado = sorteia_numero(65);
     // printf("Resultado: %d\n", resultado);
 
-    iterador = numeroProcessos; // Variavel para armazenar o valor de processos
+    numProcessos = numeroProcessos; // Variavel para armazenar o valor de processos
 
     initMemory();
 
@@ -791,19 +824,19 @@ int main() {
         }
     }
 
-    // pthread_create(&lendo_novo_processo, NULL, &recebe_novos_processos, &iterador);
+    // pthread_create(&lendo_novo_processo, NULL, &recebe_novos_processos, &numProcessos);
     pthread_create(&executando_processo, NULL, &executando_processos, &clockCPU);
-    pthread_create(&processos_bloqueados, NULL, &processos_bloqueados, &clockCPU);
+    // pthread_create(&processos_bloqueados, NULL, &processos_bloqueados, &clockCPU);
 
     pthread_join(executando_processo, NULL);
-    pthread_join(processos_bloqueados, NULL);
+    // pthread_join(processos_bloqueados, NULL);
     // pthread_cancel(lendo_novo_processo);
 
     // Saida de troca de paginas
     // lerArquivoEAtualizar(algoritmo_atual,trocasDePaginas);
 
     pthread_mutex_destroy(&mutex_prioridade);
-    pthread_mutex_destroy(&mutex_bloqueados);
+    // pthread_mutex_destroy(&mutex_bloqueados);
 
     free(listaP);
     // free(oldestProcess);
