@@ -285,7 +285,7 @@ void addGlobalMemory(int id, int page, int pos,int posicaoP){
 
 void politicaLocal(int id, int page){
     int pos = findOldestLocal(id);
-    printf("pos oldest local %d \n",pos);
+    // printf("pos oldest local %d \n",pos);
     addLocalMemory(id,page,pos);
 }
 
@@ -534,7 +534,32 @@ void *executando_processos(void* arg){
         }
         else{ // nao realiza E/S e vai para CPU
             if(listaP[posicao].status == 1){
-                printf("--- CPU VAZIA ---\n"); 
+                printf("\n--- CPU VAZIA ---\n"); 
+
+                //Imprime todos os processos que estao PRONTOS
+                printf("--- PROCESSOS PRONTOS --- \n");
+                int k = 0;
+                while(k < numProcessos){
+                    if(listaP[k].status == 0 && k != posicao){
+                        printf("Id: %d; ", listaP[k].id);
+                        printf("Tempo de restante: %d;\n", listaP[k].tempo_execucao); 
+                    }
+                    k++;     
+                }
+
+                //Imprime todos os processos que estao BLOQUEADOS
+                printf("--- PROCESSOS BLOQUEADOS --- \n");
+                k = 0;
+                while(k < numProcessos){
+                    if(listaP[k].status == 1){
+                        // Para todos deve ser informado o tempo de CPU restante para sua conclusão.
+                        printf("Id: %d; ", listaP[k].id);
+                        printf("Tempo de restante: %d; ", listaP[k].tempo_execucao); 
+                        // usar mutex para ver qual disp esta usando ou esperando para usar 
+                        printf("Utilizando/esperando dispositivo: x\n");
+                    }
+                    k++;     
+                }
             }
             if (maior_prioridade > 0){
                 pthread_mutex_lock(&mutex_prioridade);
@@ -564,7 +589,7 @@ void *executando_processos(void* arg){
                 printf("Tempo de restante: %d; ", listaP[posicao].tempo_execucao); 
                 printf("Latencia: %d\n", listaP[posicao].latencia);
                 
-                // FIFO(listaP, posicao); // Aplicacao do algoritmo de gerenciamento de memoria FIFO
+                FIFO(listaP, posicao); // Aplicacao do algoritmo de gerenciamento de memoria FIFO
 
                 //Imprime todos os processos que estao PRONTOS
                 printf("--- PROCESSOS PRONTOS --- \n");
@@ -616,7 +641,6 @@ void *executando_processos(void* arg){
             }
         }
         clockAtualCPU++;
-        // printf("CLOCK: %d; \n", clockAtualCPU);
     }
 }
 
