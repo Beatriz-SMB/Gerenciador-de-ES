@@ -79,7 +79,7 @@ int sorteia_numero(int porcentagem){
 
     int numeroAleatorio = rand() % 100;
     // printf("Numero sorteado: %d\n", numeroAleatorio);
-    if (porcentagem >= numeroAleatorio) {
+    if (porcentagem > numeroAleatorio) {
         return 1;
     } else {
         return 0;
@@ -572,7 +572,8 @@ void criando_arquivo(){
 
 void *processos_bloqueados(void* arg){
     while(true){
-        printf("\n-- Thread Bloqueados -- \n");
+        //printf("\n-- Thread Bloqueados -- \n");
+        printf("\n-- Knosh -- \n");
 
         //percorres a lista de espera do dispositivo por prioridade de entrada
         pthread_mutex_lock(&mutex_devices);
@@ -584,7 +585,7 @@ void *processos_bloqueados(void* arg){
                 int clock = clockAtualCPU;
                 sem_post(&semaphoreClock);
 
-                if(listaD[device].listaEspera[process].tempoES >= clock && listaD[device].listaEspera[process].tempoRestante > 0){
+                if(listaD[device].listaEspera[process].tempoES <= clock && listaD[device].listaEspera[process].tempoRestante > 0){ //Vini modificou o clock que era >=
                     // if(listaD[device].numOfUses < listaD[device].numUsosSimultaneos){ // Checa se o dispositivo ainda aceita mais processos simultaneos
                         listaD[device].listaEspera[process].tempoRestante--;
                         listaD[device].listaEspera[process].status = 1; // esta usando o dispositivo
@@ -638,7 +639,7 @@ void *executando_processos(void* arg){
 
         // Ira realizar E/S
         int sort = sorteia_numero(listaP[posicao].chanceRequisitarES);
-        if(sort && listaP[posicao].status == 0){
+        if(sort == 1 && listaP[posicao].status == 0){
             printf("Processo %d realizar E/S\n", listaP[posicao].id);
 
             // Tranca a lista de dispositivos
@@ -711,7 +712,7 @@ void *executando_processos(void* arg){
                 }
 
                 //Imprime todos os processos que estao BLOQUEADOS
-                imprimi_processos_bloqueados();
+                // imprimi_processos_bloqueados();
 
                 if (listaP[posicao].prioridade == 0){
                     // libera_memoria(listaP[posicao].id);
@@ -761,7 +762,7 @@ void *recebe_novos_processos(void* arg){
         char* sequencia_str;
         
         // Tenta ler os 5 campos principais
-        int result = sscanf(linha, "processo-%[^|]|%d|%d|%d|%d|%[^\n]", nome, &id, &tempo, &prioridade, &qtdMemoria, &sequencia_str); 
+        int result = sscanf(linha, "processo-%[^|]|%d|%d|%d|%d|%[^\n]", nome, &id, &tempo, &prioridade, &qtdMemoria, sequencia_str); 
         printf("Result: %d \n", result);
         
         if (result == 6) {  // Certifique-se de que 6 campos foram lidos corretamente
