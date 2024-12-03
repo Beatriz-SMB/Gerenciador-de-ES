@@ -78,6 +78,7 @@ int clockCPU,
 int sorteia_numero(int porcentagem){
 
     int numeroAleatorio = rand() % 100;
+    // printf("Número sorteado %d", numeroAleatorio);
     // printf("Numero sorteado: %d\n", numeroAleatorio);
     if (porcentagem > numeroAleatorio) {
         return 1;
@@ -113,7 +114,7 @@ void gerencia_es( int id){ // recebe id do processo
     processoEmEspera.status = 0;                                   // Em espera pelo dispositivo
 
     listaD[device].listaEspera[listaD[device].tamanhoLista] = processoEmEspera;
-    printf("Adicionado o processo (%d) na posicao (%d)\n",id, listaD[device].tamanhoLista);
+    //printf("Adicionado o processo (%d) na posicao (%d)\n",id, listaD[device].tamanhoLista);
     listaD[device].tamanhoLista++;
     return;
     printf("\n");
@@ -573,7 +574,7 @@ void criando_arquivo(){
 void *processos_bloqueados(void* arg){
     while(true){
         //printf("\n-- Thread Bloqueados -- \n");
-        printf("\n-- Knosh -- \n");
+        // printf("\n-- Knosh -- \n");
 
         //percorres a lista de espera do dispositivo por prioridade de entrada
         pthread_mutex_lock(&mutex_devices);
@@ -586,16 +587,17 @@ void *processos_bloqueados(void* arg){
                 sem_post(&semaphoreClock);
 
                 if(listaD[device].listaEspera[process].tempoES <= clock && listaD[device].listaEspera[process].tempoRestante > 0){ //Vini modificou o clock que era >=
-                    // if(listaD[device].numOfUses < listaD[device].numUsosSimultaneos){ // Checa se o dispositivo ainda aceita mais processos simultaneos
+                    if(listaD[device].numOfUses < listaD[device].numUsosSimultaneos){ // Checa se o dispositivo ainda aceita mais processos simultaneos
                         listaD[device].listaEspera[process].tempoRestante--;
                         listaD[device].listaEspera[process].status = 1; // esta usando o dispositivo
                         printf("Processo %d realizou E/S\n",listaD[device].listaEspera[process].idProcesso);
 
-                    //     listaD[device].numOfUses ++;
-                    // }
+                        listaD[device].numOfUses++; // criar lista com dispositivos em uso
+                        printf("%d numero de uso \n", listaD[device].numOfUses);
+                    }
                 }
                 if(listaD[device].listaEspera[process].tempoRestante == 0){ // Processo esta pronto
-                    // listaD[device].numOfUses --; // Libera o uso do processo no dispositivo 
+                    listaD[device].numOfUses--; // Libera o uso do processo no dispositivo 
 
                     pthread_mutex_lock(&mutex_prioridade);
                     for (int posicao = 0; posicao <= numProcessos; posicao++){
@@ -639,7 +641,7 @@ void *executando_processos(void* arg){
 
         // Ira realizar E/S
         int sort = sorteia_numero(listaP[posicao].chanceRequisitarES);
-        if(sort == 1 && listaP[posicao].status == 0){
+        if(sort == 1 && listaP[posicao].status == 0 && listaP[posicao].prioridade > 0){
             printf("Processo %d realizar E/S\n", listaP[posicao].id);
 
             // Tranca a lista de dispositivos
@@ -698,13 +700,13 @@ void *executando_processos(void* arg){
                 printf("Tempo de restante: %d; ", listaP[posicao].tempo_execucao); 
                 printf("Latencia: %d\n", listaP[posicao].latencia);
                 
-                FIFO(listaP, posicao); // Aplicacao do algoritmo de gerenciamento de memoria FIFO
+                //FIFO(listaP, posicao); // Aplicacao do algoritmo de gerenciamento de memoria FIFO
 
                 //Imprime todos os processos que estao PRONTOS
                 printf("--- PROCESSOS PRONTOS --- \n");
                 int k = 0;
                 while(k < numProcessos){
-                    if(listaP[k].status == 0 && k != posicao){
+                    if(listaP[k].status == 0 && k != posicao && listaP[k].tempo_execucao > 0){
                         printf("Id: %d; ", listaP[k].id);
                         printf("Tempo de restante: %d;\n", listaP[k].tempo_execucao); 
                     }
