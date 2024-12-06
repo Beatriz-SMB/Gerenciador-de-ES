@@ -27,6 +27,8 @@ typedef struct{
         latencia,
         trocasDePaginas,
         moldurasUsadas,
+        tempo_pronto,
+        tempo_bloqueado,
         status; // Status do processos (0 para pronto e 1 para bloqueado)
 } DadosProcessos;
 
@@ -95,7 +97,7 @@ int sorteia_dispositivo(){
 
 // Função que gerencia o dispositivo que vai fazer E/S
 void gerencia_es( int id){ // recebe id do processo
-    int device = 3;//sorteia_dispositivo();
+    int device = sorteia_dispositivo();
     listaD[device].listaEspera = realloc(listaD[device].listaEspera, (listaD[device].tamanhoLista + 1) * sizeof(ProcessoEmEspera));
     if (listaD[device].listaEspera == NULL) {
         printf("Erro ao alocar memória.\n");
@@ -519,6 +521,8 @@ int read_process(const char *nome_arquivo, DadosProcessos *listaP, DadosDisposit
             listaP[i].trocasDePaginas = 0;
             listaP[i].moldurasUsadas = 0;
             listaP[i].status = 0;
+            listaP[i].tempo_bloqueado = 0;
+            listaP[i].tempo_pronto = 0;
 
             // Ler e armazenar a sequência
             char *sequencia_str = strtok(NULL, "|");
@@ -577,16 +581,19 @@ pthread_mutex_t mutex_prioridade;
 //Função para criar um arquivo txt onde estarão armazenados o Id e a Latência de cada processo.
 void criando_arquivo(){
     int i = 0;
-    FILE* arquivo_3 = fopen("SaidaPrioridade.txt", "w");
-    fprintf(arquivo_3, "ID | LATÊNCIA\n");
+    FILE *arquivo_3 = fopen("SaidaPrioridade.txt", "w");
+    fprintf(arquivo_3, "ID | TEMPO EXECUTANDO | TEMPO BLOQUEADO | TEMPO PRONTO\n");
 
     while (i < numProcessos){
         if (listaP[i].id >= 0){
-            fprintf(arquivo_3, "%d | ", listaP[i].id);
-            fprintf(arquivo_3, "%d\n", listaP[i].latencia);
+            fprintf(arquivo_3, "%d  | ", listaP[i].id);
+            fprintf(arquivo_3, "        %d        | ", listaP[i].latencia);
+            fprintf(arquivo_3, "        %d       | ", listaP[i].tempo_bloqueado);
+            fprintf(arquivo_3, "    %d\n", listaP[i].tempo_pronto);
         }
         i++;
     }
+    fclose(arquivo_3);
 }
 
 int usoDeDispositivo(int device, int idProcess){ // Posicao da listaD em que esta o dispositivo e id do processo a verificar
@@ -601,74 +608,72 @@ int usoDeDispositivo(int device, int idProcess){ // Posicao da listaD em que est
     return 0;
 }
 
-void *processos_bloqueados(void* arg){
-    while(true){
-        //printf("\n-- Thread Bloqueados -- \n");
+void processos_bloqueados(int clockCPU){
 
-        pthread_mutex_lock(&mutex_devices);
-        for (int device =0; device < numDispositivosES; device ++){  //percorres a lista de espera do dispositivo por prioridade de entrada
-            for (int process = 0; process < listaD[device].tamanhoLista; process++){
+    //printf("\n-- Thread Bloqueados -- \n");
+    for (int process =0; process < numProcessos; process++){
+        if(listaP[process].status == 1){
+            for (int device =0; device < numDispositivosES; device++){  //percorre a lista de espera do dispositivo por prioridade de entrada
+                for (int process = 0; process < listaD[device].tamanhoLista; process++){
 
-                if(listaD[device].listaEspera[process].tempoRestante > 0){ //Vini modificou o clock que era >=
-                    // Checa se o dispositivo ainda aceita mais processos simultaneos
-                    if(usoDeDispositivo(device,listaD[device].listaEspera[process].idProcesso)){   //Se o processo ja esta usando o dispositivo pode fazer E/S
-                        listaD[device].listaEspera[process].tempoRestante--;
-                        listaD[device].listaEspera[process].status = 1; // esta usando o dispositivo
-                        // printf("Processo %d ja esta na lista E/S pelo dispositivo %d\n",listaD[device].listaEspera[process].idProcesso,device);
-                        printf("Processo %d realizou E/S\n",listaD[device].listaEspera[process].idProcesso);
-
-                    }
-                    else{ // Else para n guardar o mesmo processo em uso
-                        if(listaD[device].numOfUses < listaD[device].numUsosSimultaneos){ 
-                            printf("Processo %d NAO estava na lista E/S pelo dispositivo %d\n",listaD[device].listaEspera[process].idProcesso,device);
-                            
-                            listaD[device].listaEmUso[listaD[device].numOfUses] = listaD[device].listaEspera[process].idProcesso; // Guarda idProcess
-                            listaD[device].numOfUses++; // criar lista com dispositivos em uso
-                            printf("Numero de dispositivos em uso (%d) e lista em uso: ",listaD[device].numOfUses);
-                            for(int m = 0; m < listaD[device].numUsosSimultaneos; m++){
-                                printf("%d",listaD[device].listaEmUso[m]);
-                            }
-                            printf("\n");
-
-                            // printf("Processo %d esta usando o dispositivo %d\n",listaD[device].listaEspera[process].idProcesso,device);
-                            listaD[device].listaEspera[process].tempoRestante--;
+                    if(listaD[device].listaEspera[process].tempoRestante > 0){ //Vini modificou o clock que era >=
+                        // Checa se o dispositivo ainda aceita mais processos simultaneos
+                        if(usoDeDispositivo(device,listaD[device].listaEspera[process].idProcesso)){   //Se o processo ja esta usando o dispositivo pode fazer E/S
+                            listaD[device].listaEspera[process].tempoRestante -= clockCPU;
                             listaD[device].listaEspera[process].status = 1; // esta usando o dispositivo
-                            printf("Processo %d realizou E/S\n",listaD[device].listaEspera[process].idProcesso);
-                            
+                            // printf("Processo %d ja esta na lista E/S pelo dispositivo %d\n",listaD[device].listaEspera[process].idProcesso,device);
+                            // printf("Processo %d realizou E/S\n",listaD[device].listaEspera[process].idProcesso);
+
+                        }
+                        else{ // Else para n guardar o mesmo processo em uso
+                            if(listaD[device].numOfUses < listaD[device].numUsosSimultaneos){ 
+                                printf("Processo %d NAO estava na lista E/S pelo dispositivo %d\n",listaD[device].listaEspera[process].idProcesso,device);
+                                
+                                listaD[device].listaEmUso[listaD[device].numOfUses] = listaD[device].listaEspera[process].idProcesso; // Guarda idProcess
+                                listaD[device].numOfUses++; // criar lista com dispositivos em uso
+                                printf("Numero de dispositivos em uso (%d) e lista em uso: ",listaD[device].numOfUses);
+                                for(int m = 0; m < listaD[device].numUsosSimultaneos; m++){
+                                    printf("%d",listaD[device].listaEmUso[m]);
+                                }
+                                printf("\n");
+
+                                // printf("Processo %d esta usando o dispositivo %d\n",listaD[device].listaEspera[process].idProcesso,device);
+                                listaD[device].listaEspera[process].tempoRestante -= clockCPU;
+                                listaD[device].listaEspera[process].status = 1; // esta usando o dispositivo
+                                printf("Processo %d realizou E/S\n",listaD[device].listaEspera[process].idProcesso);
+                                
+                            }
                         }
                     }
-                }
-                if(listaD[device].listaEspera[process].tempoRestante == 0){ // Processo esta pronto
-                    printf("Processo %d pronto\n",listaD[device].listaEspera[process].idProcesso);
-                    listaD[device].numOfUses--; // Libera o uso do processo no dispositivo 
+                    if(listaD[device].listaEspera[process].tempoRestante <= 0){ // Processo esta pronto
+                        printf("Processo %d pronto\n",listaD[device].listaEspera[process].idProcesso);
+                        listaD[device].numOfUses--; // Libera o uso do processo no dispositivo 
 
-                    for(int m = 0; m < listaD[device].numUsosSimultaneos-1; m++){
-                        listaD[device].listaEmUso[m] = listaD[device].listaEmUso[m+1];
-                    }
-                    printf("Lista atualizada de espera: ");
-                    for(int m = 0; m < listaD[device].numUsosSimultaneos; m++){
-                        printf("%d",listaD[device].listaEmUso[m]);
-                    }
-                    printf("\n");
-
-                    pthread_mutex_lock(&mutex_prioridade);
-                    for (int posicao = 0; posicao <= numProcessos; posicao++){
-                        if(listaP[posicao].id == listaD[device].listaEspera[process].idProcesso){
-                            listaP[posicao].status = 0; // processo pronto
+                        for(int m = 0; m < listaD[device].numUsosSimultaneos-1; m++){
+                            listaD[device].listaEmUso[m] = listaD[device].listaEmUso[m+1];
                         }
-                    }
-                    pthread_mutex_unlock(&mutex_prioridade);
+                        printf("Lista atualizada de espera: ");
+                        for(int m = 0; m < listaD[device].numUsosSimultaneos; m++){
+                            printf("%d",listaD[device].listaEmUso[m]);
+                        }
+                        printf("\n");
 
-                    remove_position(device, process); // process == posicao do processo na lista de espera
-                    
+                        
+                        for (int posicao = 0; posicao <= numProcessos; posicao++){
+                            if(listaP[posicao].id == listaD[device].listaEspera[process].idProcesso){
+                                listaP[posicao].status = 0; // processo pronto
+                            }
+                        }
+                        
+                        printf("arroz\n");
+                        remove_position(device, process); // process == posicao do processo na lista de espera
+                        
+                    }
                 }
             }
         }
-        // printf("cu\n");
-        pthread_mutex_unlock(&mutex_devices);
-
-        sleep(rand() % 3);
     }
+    // sleep(rand() % 3);
 }
 
 //Função que recebe a lista de processos e executa-os. Durante o procedimento de executar um novo processo ele "trava" a função recebe_novos_processos usando um mutex.
@@ -684,8 +689,11 @@ void *executando_processos(void* arg){
             j = 0,
             k = 0;
         
-        pthread_mutex_lock(&mutex_prioridade);
         while(j < numProcessos){
+            if(listaP[j].tempo_execucao <= 0 && listaP[j].prioridade > 0){
+                // listaP[j].latencia += listaP[j].tempo_bloqueado;
+                listaP[j].prioridade = 0;
+            }
             // Percorre a lista de processos e encontra o processo com maior prioridade e armazena a posicao
             if (maior_prioridade < listaP[j].prioridade && listaP[j].tempo_execucao > 0 && listaP[j].status == 0){
                 maior_prioridade = listaP[j].prioridade;
@@ -694,58 +702,80 @@ void *executando_processos(void* arg){
             j++;     
         }
 
+        id_processo_atual = listaP[posicao].id;
+        processos_bloqueados(clockCPU);
+
         if(listaP[posicao].status == 0 && listaP[posicao].tempo_execucao > 0){
-            id_processo_atual = listaP[posicao].id;
-            
             // Ira realizar E/S
             int sort = sorteia_numero(listaP[posicao].chanceRequisitarES);
             if (sort){
                 printf("Processo %d realizar E/S\n",listaP[posicao].id);
-                int tempoES = 3; //rand() % clockCPU; // tempo em que fara E/S
+                int tempoES = (listaP[posicao].tempo_execucao < clockCPU) ? rand() % listaP[posicao].tempo_execucao : rand() % clockCPU; // tempo em que fara E/S
 
-                listaP[posicao].tempo_execucao -= (tempoES > listaP[posicao].tempo_execucao) ? listaP[posicao].tempo_execucao : tempoES;
+                gerencia_es(listaP[posicao].id); // Entrada e saída!!!!!!!!!!!!
+
 
                 int k = 0;
                 while(k < numProcessos){
-                    if (listaP[k].prioridade > 0){
-                        listaP[k].latencia += tempoES;
+                    if (listaP[k].prioridade > 0 && listaP[k].tempo_execucao > 0){
+                        listaP[k].latencia += (listaP[k].tempo_execucao < tempoES ) ? listaP[k].tempo_execucao : tempoES;
+                    }
+                    if( k != posicao && listaP[k].status == 0 && listaP[k].prioridade > 0 && listaP[k].tempo_execucao > 0){
+                        listaP[k].tempo_pronto += (listaP[k].tempo_execucao < tempoES ) ? listaP[k].tempo_execucao : tempoES;
+                    }
+                    if( k != posicao && listaP[k].status == 1 && listaP[k].prioridade > 0 && listaP[k].tempo_execucao > 0){
+                        listaP[k].tempo_bloqueado += (listaP[k].tempo_execucao < tempoES ) ? listaP[k].tempo_execucao : tempoES;
                     }
                     k++;
                 }
+                listaP[posicao].tempo_execucao -= tempoES;
+                //Imprime todo o processo que esta Executando
+                imprimi_processos_executando(posicao);
+                    
+                //Imprime todos os processos que estao PRONTOS
+                imprimi_processos_prontos(posicao);
 
-                // Tranca a lista de dispositivos
-                pthread_mutex_lock(&mutex_devices); // Adiciona o processo a lista de dispositivos
-                gerencia_es(listaP[posicao].id);
-                pthread_mutex_unlock(&mutex_devices);
+                //Imprime todos os processos que estao BLOQUEADOS
+                imprimi_processos_bloqueados();
+                listaP[posicao].status = 1; //processo bloqueado
+
             }
             else{
-                listaP[posicao].tempo_execucao -= clockCPU;
 
                 int k = 0;
                 while(k < numProcessos){
-                    if (listaP[k].prioridade > 0){
-                        listaP[k].latencia += clockCPU;
+                    if (listaP[k].prioridade > 0 && listaP[k].tempo_execucao > 0){
+                        listaP[k].latencia += (listaP[k].tempo_execucao < clockCPU ) ? listaP[k].tempo_execucao : clockCPU;
+                    }
+                    if( k != posicao && listaP[k].status == 0 && listaP[k].prioridade > 0 && listaP[k].tempo_execucao > 0){
+                        listaP[k].tempo_pronto += (listaP[k].tempo_execucao < clockCPU ) ? listaP[k].tempo_execucao : clockCPU;
+                    }
+                    if( k != posicao && listaP[k].status == 1 && listaP[k].prioridade > 0 && listaP[k].tempo_execucao > 0){
+                        listaP[k].tempo_bloqueado += (listaP[k].tempo_execucao < clockCPU ) ? listaP[k].tempo_execucao : clockCPU;
                     }
                     k++;
                 }
+                listaP[posicao].tempo_execucao -= clockCPU;
+                    //Imprime todo o processo que esta Executando
+                imprimi_processos_executando(posicao);
+                    
+                //Imprime todos os processos que estao PRONTOS
+                imprimi_processos_prontos(posicao);
+
+                //Imprime todos os processos que estao BLOQUEADOS
+                imprimi_processos_bloqueados();
             }
 
-            // if(id_processo_anterior != id_processo_atual){
-                // printf("-----------------troca de processo -----------------\n");
-                // id_processo_anterior = id_processo_atual;
-
-            //Imprime todo o processo que esta Executando
-            imprimi_processos_executando(posicao);
+            printf("\n ----- DISPOSITIVOS -----\n"); 
+            for (int i = 0; i < numDispositivosES; i++)
+            {
+                printf("Dispositivo: %d, Estado: %s\n", i, (listaD[i].tamanhoLista == 0) ? "Disponível para uso" : "Ocupado"); 
+                for (int j = 0; j < listaD[i].tamanhoLista; j++)
+                {
+                    // printf("status do processo %d\n", listaD[i].listaEspera[j].status); 
+                    printf("Id processo: %d, Estado: %s dispositivo %d\n", listaD[i].listaEspera[j].idProcesso,(listaD[i].listaEspera[j].status == 0) ? "(esperando)" : "(usando)", i);
+                }
                 
-            //Imprime todos os processos que estao PRONTOS
-            imprimi_processos_prontos(posicao);
-
-            //Imprime todos os processos que estao BLOQUEADOS
-            imprimi_processos_bloqueados();
-            // } 
-
-            if(sort){
-                listaP[posicao].status = 1; //processo bloqueado
             }
 
             //FIFO(listaP, posicao); // Aplicacao do algoritmo de gerenciamento de memoria FIFO
@@ -756,25 +786,18 @@ void *executando_processos(void* arg){
             //     trocasDePaginas += listaP[posicao].trocasDePaginas;
             // }
 
-
-             
-                
-            pthread_mutex_unlock(&mutex_prioridade); 
-
-            sleep(1);
-        }
-
-        if(posicao == 0 && listaP[posicao].tempo_execucao <= 0){
-            printf("--- CPU VAZIA ---\n");
-        }
         if ( listaP[numProcessos-1].id == -1 ){
             //printf("Thread executar encerrou \n");
             break;
         }
-        // printf("Trocas total de paginas: %d \n",trocasDePaginas);
-        // printf("Todos os processos foram executados. Deseja encerrar? S \n");
         sleep(1);
     }
+    if(listaP[posicao].prioridade == 0){
+        printf("--- CPU VAZIA ---\n");
+        criando_arquivo();
+        sleep(5);
+    }
+}
 }
 
 //Função que recebe novos processos e armazena numa lista. Durante o procedimento de adicionar um novo processo ele "trava" a função executando_processos usando um mutex.
@@ -964,27 +987,17 @@ int main() {
     numProcessos = numeroProcessos; // Variavel para armazenar o valor de processos
     initMemory();
 
-    pthread_t executando_processo, lendo_novo_processo, processos_bloqueado;
-    pthread_mutex_init(&mutex_prioridade, NULL);
-    pthread_mutex_init(&mutex_devices, NULL);
-    pthread_mutex_init(&mutex_clock, NULL);
-
+    pthread_t executando_processo, lendo_novo_processo;
 
     // pthread_create(&lendo_novo_processo, NULL, &recebe_novos_processos, &numProcessos);
     pthread_create(&executando_processo, NULL, &executando_processos, &clockCPU);
-    pthread_create(&processos_bloqueado, NULL, &processos_bloqueados, &clockCPU);
-
+    
     pthread_join(executando_processo, NULL);
-    pthread_cancel(processos_bloqueado);
+    
     // pthread_cancel(lendo_novo_processo);
 
     // Saida de troca de paginas
     // lerArquivoEAtualizar(algoritmo_atual,trocasDePaginas);
-
-    pthread_mutex_destroy(&mutex_prioridade);
-    pthread_mutex_destroy(&mutex_devices);
-    pthread_mutex_destroy(&mutex_clock);
-    sem_destroy(&semaphoreClock);
 
     free(listaP);
     free(listaD);
