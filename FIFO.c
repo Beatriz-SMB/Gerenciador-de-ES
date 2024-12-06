@@ -232,7 +232,7 @@ int read_process(const char *nome_arquivo, DadosProcessos *listaP, DadosDisposit
             // Alocar memória para a lista de processos
             primaryMemory = (Memory *)malloc(moldurasTotais * sizeof(Memory));
 
-            printf("Memoria Principal com capacidade de %d bytes\n",tamanhoMemoria);
+            // printf("Memoria Principal com capacidade de %d bytes\n",tamanhoMemoria);
         } else if (controlador <= numDispositivosES) {
             // Processar informações de cada dispositivo
             char *nome_dispositivo = strtok(line, "|");
@@ -438,14 +438,13 @@ void *executando_processos(void* arg){
             // Ira realizar E/S
             int sort = sorteia_numero(listaP[posicao].chanceRequisitarES);
             if (sort){
-                printf("Processo %d realizar E/S\n",listaP[posicao].id);
                 int tempoES = (listaP[posicao].tempo_execucao < clockCPU) ? rand() % listaP[posicao].tempo_execucao : rand() % clockCPU; // tempo em que fara E/S
 
                 gerencia_es(listaP[posicao].id); // Entrada e saída!!!!!!!!!!!!
 
 
                 int k = 0;
-                while(k < numProcessos){
+                while(k < numProcessos){ // Soma os tempos em todos os processos
                     if (listaP[k].prioridade > 0 && listaP[k].tempo_execucao > 0){
                         listaP[k].latencia += (listaP[k].tempo_execucao < tempoES ) ? listaP[k].tempo_execucao : tempoES;
                     }
@@ -460,6 +459,8 @@ void *executando_processos(void* arg){
                 listaP[posicao].tempo_execucao -= tempoES;
                 //Imprime todo o processo que esta Executando
                 imprimi_processos_executando(posicao);
+
+                printf("\nProcesso %d realizar E/S\n\n",listaP[posicao].id);
                     
                 //Imprime todos os processos que estao PRONTOS
                 imprimi_processos_prontos(posicao);
@@ -472,7 +473,7 @@ void *executando_processos(void* arg){
             else{
 
                 int k = 0;
-                while(k < numProcessos){
+                while(k < numProcessos){ // Soma os tempos em todos os processos
                     if (listaP[k].prioridade > 0 && listaP[k].tempo_execucao > 0){
                         listaP[k].latencia += (listaP[k].tempo_execucao < clockCPU ) ? listaP[k].tempo_execucao : clockCPU;
                     }
@@ -497,7 +498,7 @@ void *executando_processos(void* arg){
             }
 
             printf("\n ----- DISPOSITIVOS -----\n"); 
-            for (int i = 0; i < numDispositivosES; i++)
+            for (int i = 0; i < numDispositivosES; i++) // Imprime os dispositivos, seu estado e id do processo que está usando
             {
                 printf("Dispositivo: %d, Estado: %s\n", i, (listaD[i].tamanhoLista == 0) ? "Disponível para uso" : "Ocupado"); 
                 for (int j = 0; j < listaD[i].tamanhoLista; j++)
@@ -512,83 +513,13 @@ void *executando_processos(void* arg){
         }
         sleep(1);
     }
-    if(listaP[posicao].prioridade == 0){
+    if(listaP[posicao].prioridade == 0){ //Quando não tiver processo para executar, printa CPU vazia e escreve os resultados no .txt
         printf("--- CPU VAZIA ---\n");
         criando_arquivo();
         sleep(5);
     }
 }
 }
-
-//Função que recebe novos processos e armazena numa lista. Durante o procedimento de adicionar um novo processo ele "trava" a função executando_processos usando um mutex.
-void *recebe_novos_processos(void* arg){
-    char resposta, linha[50];
-    int teste = 0;
-    
-    numProcessos = *(int*)arg;
-    printf("Caso deseja inserir um novo processo siga o padrão: \nnome do processo|Id|Tempo de execução|Prioridade|QtdMemoria|Seq de Acessos\n");
-
-    while (true){
-        fgets(linha, sizeof(linha), stdin);
-
-        pthread_mutex_lock(&mutex_prioridade);  
-
-        numProcessos++;
-
-        listaP = realloc(listaP, numProcessos * sizeof(DadosProcessos));
-        
-        char nome[50];
-        int id, tempo, prioridade, qtdMemoria;
-        char* sequencia_str;
-        
-        // Tenta ler os 5 campos principais
-        int result = sscanf(linha, "processo-%[^|]|%d|%d|%d|%d|%[^\n]", nome, &id, &tempo, &prioridade, &qtdMemoria, sequencia_str); 
-        printf("Result: %d \n", result);
-        
-        if (result == 6) {  // Certifique-se de que 6 campos foram lidos corretamente
-            strcpy(listaP[numProcessos - 1].nome_processo, nome);
-            listaP[numProcessos - 1].id = id;
-            listaP[numProcessos - 1].tempo_execucao = tempo;
-            listaP[numProcessos - 1].prioridade = prioridade;
-            listaP[numProcessos - 1].qtdMemoria = qtdMemoria;
-            listaP[numProcessos - 1].latencia = 0;
-            listaP[numProcessos - 1].tamanho_sequencia = 0;
-
-            // Lê a sequência de acessos se existir
-            if (sequencia_str != NULL) {
-                char *token = strtok(sequencia_str, " ");
-                while (token != NULL) {
-                    listaP[numProcessos - 1].sequencia[listaP[numProcessos - 1].tamanho_sequencia++] = atoi(token);
-                    token = strtok(NULL, " ");
-                }
-                free(sequencia_str);  // Libera a memória alocada pelo sscanf
-            }
-
-            // Exibe o processo adicionado
-            printf("Novo processo adicionado: %s\n", listaP[numProcessos - 1].nome_processo);
-            printf("Id: %d \n", listaP[numProcessos - 1].id);
-            printf("Clock: %d \n", listaP[numProcessos - 1].tempo_execucao);
-            printf("Prioridade: %d \n", listaP[numProcessos - 1].prioridade);
-            printf("QtdMemoria: %d \n", listaP[numProcessos - 1].qtdMemoria);
-            printf("Sequência de Acessos: ");
-            for (int i = 0; i < listaP[numProcessos - 1].tamanho_sequencia; i++) {
-                printf("%d ", listaP[numProcessos - 1].sequencia[i]);
-            }
-            printf("\n\n");
-        }
-        else {
-            int result = sscanf(linha, "%s", nome);
-
-            if(result == 1 && strcmp(nome, "s") == 0){
-                listaP[numProcessos - 1].id = -1;
-                //printf("Thread Adiconar encerrou \n");
-                break;
-            }
-        }
-        pthread_mutex_unlock(&mutex_prioridade);
-    }
-}
-
 
 int main() {
     srand(time(NULL));
@@ -618,12 +549,12 @@ int main() {
     }
 
     char algoritmo_atual[] = "FIFO";
-    show_devices(listaD, numDispositivosES); // Imprime os valores dos dispositivos
-    show_process(listaP, numeroProcessos);   // Imprime os valores dos processos
+    // show_devices(listaD, numDispositivosES); // Imprime os valores dos dispositivos
+    // show_process(listaP, numeroProcessos);   // Imprime os valores dos processos
 
     numProcessos = numeroProcessos; // Variavel para armazenar o valor de processos
 
-    pthread_t executando_processo, lendo_novo_processo;
+    pthread_t executando_processo;
 
     pthread_create(&executando_processo, NULL, &executando_processos, &clockCPU);
     

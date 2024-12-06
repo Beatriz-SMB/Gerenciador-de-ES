@@ -1,4 +1,4 @@
 ID | TEMPO EXECUTANDO | TEMPO BLOQUEADO | TEMPO PRONTO
-1  |         157        |         17       |     40
-2  |         172        |         0       |     112
-3  |         219        |         0       |     169
+1  |         205        |         85       |     20
+2  |         122        |         0       |     62
+3  |         205        |         0       |     155
